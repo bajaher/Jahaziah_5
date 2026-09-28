@@ -39,6 +39,18 @@ CONFIG.parts.forEach(p=>{
   // التصنيف: الوحدة السابعة (المحاسبة) تخصصية، وما دونها عامة
   if(!p.group) p.group = String(p.id).indexOf("7.") === 0 ? "major" : "general";
 });
+/* اسم الموضوع الفرعي داخل وحدته (الترقيم مستقل لكل وحدة) */
+function topicName(part, t){
+  const m = (CONFIG.partTopics && CONFIG.partTopics[part]) || CONFIG.topics || {};
+  return m[t] || ("موضوع " + t);
+}
+/* مفتاح تجميع الأداء حسب الموضوع: "الوحدة|الموضوع" لمنع تداخل أرقام الموضوعات بين الوحدات */
+function topicKeyName(k){
+  const i = String(k).indexOf("|");
+  if(i < 0) return topicName("7.4", k);
+  const part = k.slice(0,i), t = k.slice(i+1);
+  return (Object.keys(lastResult && lastResult.partAgg || {}).length > 1 ? part + " — " : "") + topicName(part, t);
+}
 function groupLabel(g){ return (CONFIG.groups && CONFIG.groups[g]) || g; }
 
 /* عدد الأسئلة المتاحة فعليًا لكل جزء */
@@ -51,7 +63,7 @@ function partStats(){
   }));
 }
 function readyParts(){ return partStats().filter(p=>p.ready); }                 // متاح كاختبار جزئي
-function compParts(){ return partStats().filter(p=>p.ready && p.inComp!==false); } // داخل الشامل
+function compParts(group){ return partStats().filter(p=>p.ready && p.inComp!==false && (!group || p.group===group)); } // داخل الشامل/المجموعة
 function partById(id){ return CONFIG.parts.find(p=>p.id===id) || null; }
 function partName(id){ const p = partById(id); return p ? p.name : id; }
 
@@ -81,8 +93,10 @@ function partTypeCounts(id){
    - يعيد توحيد الأوزان على الأجزاء المتاحة فقط عند نقص بعضها
    - يُرجع تفصيلًا يوضح الوزن المستهدف والفعلي وأي عجز
    ===================================================================== */
-function weightedPlan(total){
-  const cp = compParts();
+function weightedPlan(total, group, filt){
+  const cp = compParts(group).map(p=> filt
+      ? Object.assign({}, p, {available: QUESTION_BANK.filter(q=>q.part===p.id && filt(q)).length})
+      : p).filter(p=>p.available>0);
   if(!cp.length) return [];
   const sumW = cp.reduce((s,p)=>s+p.weight,0) || 1;
 
@@ -197,34 +211,54 @@ function pickSpread(pool, n){
   return chosen;
 }
 
-function buildExam(mode, partId){
-  mode = mode || "part";
-  const cfg = mode==="full"
-    ? CONFIG.modes.full
-    : partExamCfg(partId);
-  let base = QUESTION_BANK.filter(q => CONFIG.allowedTypes.includes(q.type));
-  let chosen = [], planUsed = [];
+/* مرشح مستوى الصعوبة: "mix" = جميع المستويات */
+function levelFilter(level){
+  return (level && level!=="mix") ? (q => String(q.level||2) === String(level)) : null;
+}
+/* أسماء أنماط الاختبار */
+const MODE_TITLES = { full:"اختبار الجاهزية الشامل", major:"اختبار في الوحدات التخصصية", general:"اختبار في الوحدات العامة" };
+function examTitleOf(x){
+  if(!x) return "";
+  const lv = (x.level && x.level!=="mix" && typeof LEVEL_NAMES!=="undefined") ? " — مستوى " + LEVEL_NAMES[x.level] : "";
+  if(x.mode==="full") return MODE_TITLES.full + lv;
+  const g = MODE_TITLES[x.group] || "اختبار وحدة";
+  if(x.mode==="group") return g + " (جميع الوحدات)" + lv;
+  return g + " — " + x.partId + " " + partName(x.partId) + lv;
+}
 
-  if(mode === "full"){
-    const plan = weightedPlan(cfg.questions);
+/* mode = full | major | general ؛ scope = "all" أو رقم وحدة ؛ level = mix | 1 | 2 | 3 */
+function buildExam(mode, scope, level){
+  mode = mode || "full";
+  if(mode==="part"){ mode = (partById(scope)||{}).group || "major"; }   // توافق مع الاستدعاء القديم
+  const lf = levelFilter(level);
+  const okType = q => CONFIG.allowedTypes.includes(q.type);
+  const single = mode!=="full" && scope && scope!=="all";
+  let chosen = [], planUsed = [], cfg, kind;
+
+  if(!single){
+    kind = mode==="full" ? "full" : "group";
+    cfg = (CONFIG.modes && CONFIG.modes[mode]) || CONFIG.modes.full;
+    const filt = q => okType(q) && (!lf || lf(q));
+    const plan = weightedPlan(cfg.questions, mode==="full" ? null : mode, filt);
     plan.forEach(pl => {
-      let pool = base.filter(q => q.part === pl.id);
+      let pool = QUESTION_BANK.filter(q => q.part === pl.id && filt(q));
       if(CONFIG.shuffleQuestions) pool = shuffle(pool);
       const got = pickSpread(pool, pl.n);
       chosen = chosen.concat(got);
       planUsed.push({ id: pl.id, n: got.length, weight: pl.weight, official: pl.official });
     });
   } else {
-    // اختبار الوحدة: يلتزم بأنواع الأسئلة المحددة لهذه الوحدة
-    let pool = QUESTION_BANK.filter(q => q.part === partId && cfg.types.includes(q.type));
+    kind = "part";
+    cfg = partExamCfg(scope);
+    let pool = QUESTION_BANK.filter(q => q.part === scope && cfg.types.includes(q.type) && (!lf || lf(q)));
     if(CONFIG.shuffleQuestions) pool = shuffle(pool);
     chosen = pickSpread(pool, Math.min(cfg.questions, pool.length));
-    planUsed.push({ id: partId, n: chosen.length, types: cfg.types });
+    planUsed.push({ id: scope, n: chosen.length, types: cfg.types });
   }
 
   const questions = (CONFIG.shuffleQuestions ? shuffle(chosen) : chosen).map(instantiate);
   return {
-    mode, partId, plan: planUsed,
+    mode: kind, group: mode, level: level || "mix", partId: single ? scope : null, plan: planUsed,
     questions,
     idx:0,
     answers: questions.map(()=>null),
@@ -274,7 +308,7 @@ function dedupeBase(base){
 
 /* توليد نسخة قابلة للعرض من السؤال (مع خلط الخيارات وتوليد الأرقام) */
 function instantiate(q){
-  const inst = {src:q, type:q.type, topic:q.topic, part:q.part, ref:q.ref||""};
+  const inst = {src:q, type:q.type, topic:q.topic, part:q.part, level:q.level||2, ref:q.ref||""};
   if(q.type==="mcq" || q.type==="calc"){
     let base;
     if(typeof q.gen === "function"){
@@ -351,10 +385,7 @@ function renderGate(){
     ? "يجب أن ينتهي البريد بـ @" + CONFIG.emailDomain + " (البريد الجامعي الرسمي فقط)"
     : "أدخل بريدك الإلكتروني الرسمي";
   // قائمة المقررات = الوحدات المعرفية في معايير المحاسبة 2025
-  const ps = partStats();
-  $("#g-subject").innerHTML = '<option value="">— اختر المقرر / الوحدة المعرفية —</option>' +
-    ps.map(p=>'<option value="'+esc(p.id+" — "+p.name)+'"'+(p.ready?"":" disabled")+">"+
-      esc(p.id+" — "+p.name+(p.ready?"":" (قريبًا)"))+"</option>").join("");
+  // أُلغي اختيار المقرر من شاشة الدخول؛ يختار الطالب نوع الاختبار من الصفحة الرئيسية
   $("#g-sid-wrap").classList.toggle("hidden", !CONFIG.askStudentId);
   show("screen-gate");
 }
@@ -371,7 +402,7 @@ function gateError(msg, focusId){
 }
 
 function attemptLogin(){
-  ["g-name","g-email","g-sid","g-subject","g-pass"].forEach(id=>{
+  ["g-name","g-email","g-sid","g-pass"].forEach(id=>{
     const el = $("#"+id); if(el) el.classList.remove("invalid");
   });
   $("#g-error").classList.add("hidden");
@@ -385,7 +416,7 @@ function attemptLogin(){
   const name = $("#g-name").value.trim().replace(/\s+/g," ");
   const email = $("#g-email").value.trim().toLowerCase();
   const sid = $("#g-sid").value.trim();
-  const subject = $("#g-subject").value;
+  const subject = CONFIG.courseTitle || "الإعداد لاختبار الجاهزية";
   const pass = $("#g-pass").value.trim();
 
   /* ===== مسار دخول المعلم (المسؤول) ===== */
@@ -433,7 +464,7 @@ function attemptLogin(){
     gateError("يرجى إدخال الرقم الجامعي (أرقام فقط، من 6 إلى 12 خانة).", "g-sid"); return;
   }
   // المقرر
-  if(!subject){ gateError("يرجى اختيار المقرر.", "g-subject"); return; }
+
   // كلمة المرور
   if(pass.toUpperCase() !== String(CONFIG.examPassword).toUpperCase()){
     passTries++;
@@ -464,54 +495,86 @@ function studentHtml(extra){
     ["الطالب", STUDENT.name],
     ["البريد الجامعي", STUDENT.email],
     STUDENT.sid ? ["الرقم الجامعي", STUDENT.sid] : null,
-    ["المقرر", STUDENT.subject]
   ].filter(Boolean).concat(extra||[]);
   return rows.map(r=>'<div class="si"><b>'+esc(r[0])+':</b><span>'+esc(r[1])+"</span></div>").join("");
 }
 
 /* ---------------- لوحة البداية ---------------- */
-/* اختيار نمط الاختبار والجزء */
-let selMode = "part";
-let selPart = null;
+/* نوع الاختبار (full | major | general) + نطاقه (all | رقم وحدة) + مستوى الصعوبة */
+let selMode = "full";
+let selPart = "all";
+let selLevel = "mix";
+
+function modeCfg(){
+  if(selMode!=="full" && selPart && selPart!=="all") return partExamCfg(selPart);
+  return (CONFIG.modes && CONFIG.modes[selMode]) || CONFIG.modes.full;
+}
+function countAvailable(){
+  const lf = levelFilter(selLevel);
+  const ok = q => CONFIG.allowedTypes.includes(q.type) && (!lf || lf(q));
+  if(selMode!=="full" && selPart!=="all") return QUESTION_BANK.filter(q=>q.part===selPart && ok(q)).length;
+  const plan = weightedPlan(modeCfg().questions, selMode==="full"?null:selMode, ok);
+  return plan.reduce((a,x)=>a+x.n,0);
+}
 
 function renderPicker(){
   const ps = partStats();
   const rp = ps.filter(p=>p.ready);
-  if(!selPart || !rp.some(p=>p.id===selPart)) selPart = rp.length? rp[0].id : null;
+  const has = g => rp.some(p=>p.group===g);
 
-  // بطاقتا نمط الاختبار
-  const fullEnabled = rp.length >= 2;
-  $("#mode-cards").innerHTML = [
-    { id:"part", title:"📗 اختبار جزء واحد",
-      desc: CONFIG.modes.part.questions+" سؤالًا • "+CONFIG.modes.part.duration+" دقيقة — تدرّب على وحدة معرفية واحدة",
-      on:true },
-    { id:"full", title:"🎯 اختبار الجاهزية الشامل",
-      desc: CONFIG.modes.full.questions+" سؤالًا • "+CONFIG.modes.full.duration+" دقيقة — موزّعة على الأجزاء بأوزان المعيار"
-            + (fullEnabled? "" : " (يتطلب جاهزية جزأين على الأقل)"),
-      on: fullEnabled }
-  ].map(m=>
-    '<div class="mode-card'+(selMode===m.id?" active":"")+(m.on?"":" disabled")+'" data-mode="'+m.id+'">'+
-    '<div class="mc-title">'+m.title+"</div><div class=\"mc-desc\">"+esc(m.desc)+"</div></div>"
-  ).join("");
+  // البطاقات الثلاث
+  const tiles = [
+    { id:"full",    icon:"🎯", title:MODE_TITLES.full,    on: rp.length>0,
+      desc: CONFIG.modes.full.questions+" سؤالًا • "+CONFIG.modes.full.duration+" دقيقة — يحاكي الاختبار الرسمي ويغطي جميع الوحدات" },
+    { id:"major",   icon:"📊", title:MODE_TITLES.major,   on: has("major"),
+      desc: "المحاسبة المالية، التكاليف، المراجعة، الزكاة والضريبة، نظم المعلومات المحاسبية" },
+    { id:"general", icon:"📚", title:MODE_TITLES.general, on: has("general"),
+      desc: "الاقتصاد، أساسيات المحاسبة والتمويل، القانون والأخلاقيات، التسويق، الإدارة، نظم المعلومات" }
+  ];
+  if(!tiles.find(t=>t.id===selMode && t.on)){ const f = tiles.find(t=>t.on); selMode = f? f.id : "full"; }
+  $("#mode-cards").innerHTML = tiles.map(m=>
+    '<div class="mode-tile'+(selMode===m.id?" active":"")+(m.on?"":" disabled")+'" data-mode="'+m.id+'">'+
+    '<div class="mt-icon '+m.id+'">'+m.icon+'</div><div class="mt-title">'+esc(m.title)+
+    '</div><div class="mt-desc">'+esc(m.desc)+'</div></div>').join("");
 
-  // قائمة الوحدات مقسّمة إلى عامة وتخصصية (بدون إظهار الأوزان للطالب)
-  $("#part-select-wrap").classList.toggle("hidden", selMode!=="part");
-  $("#part-select").innerHTML = ["general","major"].map(g=>{
-    const items = ps.filter(p=>p.group===g);
-    if(!items.length) return "";
-    return '<optgroup label="'+esc(groupLabel(g))+'">' + items.map(p=>
-      '<option value="'+p.id+'"'+(p.ready?"":" disabled")+(selPart===p.id?" selected":"")+'>'+
-      esc(p.id+" — "+p.name+(p.ready? " • "+p.available+" سؤالًا" : " • قريبًا"))+"</option>").join("") +
-      "</optgroup>";
-  }).join("");
+  // نطاق الاختبار داخل المجموعة: جميع الوحدات أو وحدة واحدة
+  const wrap = $("#part-select-wrap");
+  wrap.classList.toggle("hidden", selMode==="full");
+  if(selMode!=="full"){
+    const items = ps.filter(p=>p.group===selMode && p.ready);
+    if(selPart!=="all" && !items.some(p=>p.id===selPart)) selPart = "all";
+    $("#part-select").innerHTML =
+      '<option value="all"'+(selPart==="all"?" selected":"")+'>⭐ جميع '+
+      (selMode==="major"?"الوحدات التخصصية":"الوحدات العامة")+' (اختبار شامل للمجموعة)</option>' +
+      items.map(p=>'<option value="'+p.id+'"'+(selPart===p.id?" selected":"")+'>'+
+        esc(p.id+" — "+p.name)+'</option>').join("");
+  } else { selPart = "all"; }
 
-  // مخطط توزيع الاختبار الشامل (يظهر عند اختيار النمط الشامل)
-  const bpWrap = $("#blueprint-card");
-  if(selMode==="full" && fullEnabled){
-    const plan = weightedPlan(CONFIG.modes.full.questions);
-    const cov = planCoverage();
-    bpWrap.classList.remove("hidden");
-    const planById = {}; plan.forEach(x=> planById[x.id] = x);
+  // مستويات الصعوبة
+  const lv = [["mix","🎲 مختلط","كل المستويات"],["1","🟢 سهل","تذكّر وفهم"],["2","🟡 متوسط","تطبيق"],["3","🔴 صعب","تحليل وحالات"]];
+  $("#level-chips").innerHTML = lv.map(x=>
+    '<button type="button" class="lvl-chip'+(String(selLevel)===x[0]?" active":"")+'" data-level="'+x[0]+'">'+
+    x[1]+'<small>'+x[2]+'</small></button>').join("");
+
+  const cfg = modeCfg();
+  const avail = countAvailable();
+  const qn = Math.min(cfg.questions, avail);
+  $("#d-qn").textContent = qn || "—";
+  $("#d-dur").textContent = cfg.duration + " دقيقة";
+  $("#btn-start").disabled = !qn;
+
+  // أقسام المعلم فقط (وضع المعاينة)
+  const tWrap = $("#teacher-only");
+  if(tWrap) tWrap.classList.toggle("hidden", !PREVIEW);
+  if(PREVIEW) renderTeacherBlocks(ps);
+}
+
+/* توزيع الأوزان وخريطة الوحدات — تظهر للمعلم في وضع المعاينة فقط */
+function renderTeacherBlocks(ps){
+  const plan = weightedPlan(modeCfg().questions, selMode==="full"?null:selMode, levelFilter(selLevel));
+  const bp = $("#blueprint-card");
+  if(bp){
+    bp.classList.toggle("hidden", !(selMode==="full" || selPart==="all"));
     let rows = "";
     ["general","major"].forEach(g=>{
       const items = plan.filter(x=> (partById(x.id)||{}).group === g);
@@ -519,61 +582,26 @@ function renderPicker(){
       rows += '<tr class="grp"><td colspan="2">'+esc(groupLabel(g))+"</td></tr>" +
         items.map(x=>'<tr><td>'+esc(x.id+" — "+x.name)+"</td><td>"+x.n+" سؤالًا</td></tr>").join("");
     });
-    $("#blueprint").innerHTML =
-      '<table class="cov"><thead><tr><th>الوحدة المعرفية</th><th>عدد الأسئلة</th></tr></thead><tbody>'+
-      rows + '<tr><td><b>الإجمالي</b></td><td><b>'+plan.reduce((s,x)=>s+x.n,0)+
-      ' سؤالًا</b></td></tr></tbody></table>';
-    $("#blueprint-note").textContent = cov.units < cov.totalUnits
-      ? "يشمل هذا الاختبار " + cov.units + " وحدة معرفية من أصل " + cov.totalUnits +
-        "، وتُضاف بقية الوحدات تباعًا."
-      : "يشمل هذا الاختبار جميع الوحدات المعرفية (" + cov.totalUnits + " وحدة).";
-  } else if(bpWrap){
-    bpWrap.classList.add("hidden");
+    $("#blueprint").innerHTML = '<table class="cov"><thead><tr><th>الوحدة المعرفية</th><th>عدد الأسئلة</th></tr></thead><tbody>'+
+      rows+'<tr><td><b>الإجمالي</b></td><td><b>'+plan.reduce((s,x)=>s+x.n,0)+' سؤالًا</b></td></tr></tbody></table>';
+    $("#blueprint-note").textContent = "التوزيع بحسب أوزان وثيقة المعايير للنوع والمستوى المختارين.";
   }
-
-  // خريطة الوحدات المعرفية (مقسّمة، وبدون أوزان في واجهة الطالب)
   let covRows = "";
   ["general","major"].forEach(g=>{
     const items = ps.filter(p=>p.group===g);
-    if(!items.length) return;
-    covRows += '<tr class="grp"><td colspan="3">'+esc(groupLabel(g))+" ("+items.length+" وحدات)</td></tr>" +
-      items.map(p=>'<tr class="'+(p.ready?"":"muted")+'"><td>'+esc(p.id+" — "+p.name)+
-        "</td><td>"+(p.available||"—")+"</td><td>"+
-        (p.ready?'<span class="pill ok">جاهز</span>':'<span class="pill">قريبًا</span>')+"</td></tr>").join("");
+    covRows += '<tr class="grp"><td colspan="5">'+esc(groupLabel(g))+'</td></tr>' + items.map(p=>{
+      const lv = [1,2,3].map(l=>QUESTION_BANK.filter(q=>q.part===p.id && String(q.level||2)===String(l)).length);
+      return '<tr><td>'+esc(p.id+" — "+p.name)+'</td><td>'+(p.available||"—")+'</td><td>'+lv[0]+'</td><td>'+lv[1]+'</td><td>'+lv[2]+'</td></tr>';
+    }).join("");
   });
-  $("#coverage").innerHTML =
-    '<table class="cov"><thead><tr><th>الوحدة المعرفية</th><th>الأسئلة</th><th>الحالة</th></tr></thead><tbody>' +
-    covRows + "</tbody></table>";
-
-  const gReady = ps.filter(p=>p.group==="general" && p.ready).length;
-  const mReady = ps.filter(p=>p.group==="major" && p.ready).length;
-  const gAll = ps.filter(p=>p.group==="general").length;
-  const mAll = ps.filter(p=>p.group==="major").length;
-  $("#cov-note").textContent = rp.length
-    ? "الجاهز الآن: " + gReady + " من " + gAll + " وحدات عامة، و" + mReady + " من " + mAll + " وحدات تخصص."
-    : "لا توجد أسئلة في البنك بعد.";
-
-  const pcfg = selPart ? partExamCfg(selPart)
-                       : {questions:CONFIG.modes.part.questions, duration:CONFIG.modes.part.duration, types:CONFIG.allowedTypes};
-  // عدد الأسئلة المتاحة في الوحدة ضمن الأنواع المسموحة لها
-  const avail = selPart ? QUESTION_BANK.filter(q=>q.part===selPart && pcfg.types.includes(q.type)).length : 0;
-  const qn = selMode==="full" ? CONFIG.modes.full.questions : Math.min(pcfg.questions, avail);
-
-  // عرض أنواع الأسئلة في الوحدة المختارة
-  const tw = $("#part-types");
-  if(tw){
-    if(selMode==="part" && selPart){
-      tw.innerHTML = pcfg.types.filter(t=>QUESTION_BANK.some(q=>q.part===selPart && q.type===t))
-        .map(t=>'<span class="chip type">'+esc(TYPE_NAMES[t]||t)+"</span>").join(" ");
-    } else { tw.innerHTML = ""; }
-  }
-  $("#d-qn").textContent = qn || "—";
-  $("#d-dur").textContent = (selMode==="full"? CONFIG.modes.full.duration : pcfg.duration) + " دقيقة";
-  $("#btn-start").disabled = !rp.length || (selMode==="part" && !selPart);
+  $("#coverage").innerHTML = '<table class="cov"><thead><tr><th>الوحدة</th><th>الأسئلة</th><th>سهل</th><th>متوسط</th><th>صعب</th></tr></thead><tbody>'+covRows+'</tbody></table>';
+  $("#cov-note").textContent = "إجمالي البنك: " + QUESTION_BANK.length + " سؤالًا.";
 }
 
 function renderDash(){
   $("#d-student").innerHTML = studentHtml();
+  const first = STUDENT && STUDENT.name ? String(STUDENT.name).trim().split(/\s+/)[0] : "";
+  $("#d-hello").textContent = "مرحبًا" + (first && !PREVIEW ? " " + first : "") + " 👋 جاهز للتحدي؟";
   $("#d-course").textContent = CONFIG.examTitle;
   $("#d-instructor").textContent = CONFIG.examSubtitle + " — " + CONFIG.instructor;
   $("#d-chapter").textContent = CONFIG.standardRef;
@@ -598,14 +626,12 @@ function renderDash(){
 
 /* ---------------- شاشة الاختبار ---------------- */
 function startExam(){
-  exam = buildExam(selMode, selPart);
+  exam = buildExam(selMode, selPart, selLevel);
   if(!exam.questions.length){
     alert("لا توجد أسئلة متاحة لهذا الاختيار.");
     return;
   }
-  $("#exam-scope").textContent = exam.mode==="full"
-    ? "اختبار الجاهزية الشامل — " + exam.plan.map(x=>partName(x.id)+" ("+x.n+")").join(" • ")
-    : "الجزء: " + exam.partId + " — " + partName(exam.partId);
+  $("#exam-scope").textContent = examTitleOf(exam);
   $("#palette").innerHTML = exam.questions.map((_,i)=>
     '<button class="pal" data-i="'+i+'">'+(i+1)+"</button>").join("");
   startTimer();
@@ -636,8 +662,9 @@ function renderQuestion(){
   $("#pbar").style.width = (exam.answers.filter(a=>a!==null).length / exam.questions.length * 100)+"%";
   $("#qmeta").innerHTML =
     '<span class="chip type">'+TYPE_NAMES[q.type]+'</span>'+
-    (exam.mode==="full" ? '<span class="chip part">'+esc(partName(q.part))+'</span>' : '')+
-    '<span class="chip">'+esc(CONFIG.topics[q.topic]||"")+'</span>';
+    (exam.mode!=="part" ? '<span class="chip part">'+esc(partName(q.part))+'</span>' : '')+
+    (typeof LEVEL_NAMES!=="undefined" ? '<span class="chip lvl'+q.level+'">'+LEVEL_NAMES[q.level]+'</span>' : '')+
+    '<span class="chip">'+esc(topicName(q.part, q.topic))+'</span>';
   $("#qtext").textContent = q.q;
 
   const box = $("#qbody");
@@ -721,17 +748,20 @@ function gradeOne(q, ans){
 
 function submitExam(auto){
   clearInterval(exam.timerId);
-  const usedSec = CONFIG.examDuration*60 - Math.max(0,exam.remaining);
+  const usedSec = Math.max(0, (exam.duration||CONFIG.examDuration)*60 - Math.max(0,exam.remaining));
   let pts=0, correct=0, wrong=0, skipped=0;
-  const topicAgg = {}, partAgg = {};
+  const topicAgg = {}, partAgg = {}, levelAgg = {};
   const detail = exam.questions.map((q,i)=>{
     const g = gradeOne(q, exam.answers[i]);
     pts += g.pts;
     if(g.status==="skip") skipped++;
     else if(g.pts===1) correct++;
     else wrong++;
-    const t = topicAgg[q.topic] = topicAgg[q.topic]||{got:0,total:0};
+    const tk = q.part + "|" + q.topic;
+    const t = topicAgg[tk] = topicAgg[tk]||{got:0,total:0};
     t.got += g.pts; t.total += 1;
+    const lv = levelAgg[q.level] = levelAgg[q.level]||{got:0,total:0};
+    lv.got += g.pts; lv.total += 1;
     const p = partAgg[q.part] = partAgg[q.part]||{got:0,total:0};
     p.got += g.pts; p.total += 1;
     return g;
@@ -745,8 +775,8 @@ function submitExam(auto){
   lastResult = {
     pct, correct, wrong, skipped, usedSec, auto:!!auto,
     pass: pct >= CONFIG.passingGrade,
-    topicAgg, partAgg, detail, submittedAt, code,
-    mode: exam.mode, partId: exam.partId, duration: exam.duration,
+    topicAgg, partAgg, levelAgg, detail, submittedAt, code,
+    mode: exam.mode, group: exam.group, level: exam.level, partId: exam.partId, duration: exam.duration,
     questions: exam.questions,
     answers: exam.answers
   };
@@ -754,7 +784,7 @@ function submitExam(auto){
   if(!PREVIEW){   // لا تُحفظ محاولات المعاينة في سجل النتائج
     const st = loadStore();
     st.attempts.push({date:submittedAt, pct, usedSec, correct, wrong, skipped, code,
-      mode: exam.mode, partId: exam.partId,
+      mode: exam.mode, group: exam.group, level: exam.level, partId: exam.partId, title: examTitleOf(exam),
       student: STUDENT? {name:STUDENT.name, email:STUDENT.email, sid:STUDENT.sid, subject:STUDENT.subject} : null});
     if(st.attempts.length>100) st.attempts = st.attempts.slice(-100);
     saveStore(st);
@@ -795,10 +825,16 @@ function renderResult(){
     }).join("");
   }).join("");
 
-  $("#topic-perf").innerHTML = Object.keys(r.topicAgg).map(t=>{
+  const lvHtml = (typeof LEVEL_NAMES!=="undefined" && r.levelAgg) ? '<div class="grp-head">الأداء حسب مستوى الصعوبة</div>' +
+    [1,2,3].filter(l=>r.levelAgg[l]).map(l=>{
+      const a = r.levelAgg[l], pc = Math.round(a.got/a.total*100);
+      return '<div class="topicbar"><div class="tname"><span>'+LEVEL_NAMES[l]+'</span><span>'+pc+'% — '+a.total+' سؤال</span></div><div class="tbar"><div style="width:'+pc+'%;background:'+
+        (pc>=CONFIG.passingGrade?"var(--ok)":"var(--bad)")+'"></div></div></div>';
+    }).join("") + '<div class="grp-head">الأداء حسب الموضوعات</div>' : "";
+  $("#topic-perf").innerHTML = lvHtml + Object.keys(r.topicAgg).map(t=>{
     const a = r.topicAgg[t];
     const p = Math.round(a.got/a.total*100);
-    return '<div class="topicbar"><div class="tname"><span>'+esc(CONFIG.topics[t]||t)+
+    return '<div class="topicbar"><div class="tname"><span>'+esc(topicKeyName(t))+
       '</span><span>'+p+'%</span></div><div class="tbar"><div style="width:'+p+'%;background:'+
       (p>=CONFIG.passingGrade?"var(--ok)":"var(--bad)")+'"></div></div></div>';
   }).join("");
@@ -811,7 +847,7 @@ function exportResult(){
   const s = STUDENT || {name:"-", email:"-", sid:"-", subject:"-"};
   const topics = Object.keys(r.topicAgg).map(t=>{
     const a = r.topicAgg[t];
-    return (CONFIG.topics[t]||t) + ": " + Math.round(a.got/a.total*100) + "%";
+    return topicKeyName(t) + ": " + Math.round(a.got/a.total*100) + "%";
   }).join(" | ");
   const partsTxt = Object.keys(r.partAgg).map(id=>{
     const a = r.partAgg[id], p = partById(id);
@@ -822,7 +858,7 @@ function exportResult(){
     ["عنوان الاختبار", CONFIG.examTitle],
     ["الجهة", CONFIG.examSubtitle],
     ["المرجع المعياري", CONFIG.standardRef],
-    ["نمط الاختبار", r.mode==="full" ? "اختبار الجاهزية الشامل" : "اختبار جزء واحد — " + r.partId + " " + partName(r.partId)],
+    ["نوع الاختبار", examTitleOf(r)],
     ["المقرر", s.subject],
     ["أستاذ المقرر", CONFIG.instructor],
     ["اسم الطالب", s.name],
@@ -895,10 +931,11 @@ function renderReview(){
       }).join("")+"</div>";
     }
     return '<div class="card review-item">'+
-      '<div class="qmeta"><span class="chip">س'+(i+1)+'</span><span class="chip type">'+TYPE_NAMES[q.type]+'</span>'+badge+'</div>'+
+      '<div class="qmeta"><span class="chip">س'+(i+1)+'</span><span class="chip type">'+TYPE_NAMES[q.type]+'</span>'+
+      (typeof LEVEL_NAMES!=="undefined" ? '<span class="chip lvl'+q.level+'">'+LEVEL_NAMES[q.level]+'</span>' : '')+badge+'</div>'+
       '<div class="qtext">'+esc(q.q)+"</div>"+body+
       '<div class="explain"><b>الشرح:</b> '+esc(q.expl)+
-      '<div class="refline">📖 المرجع: '+esc(q.ref)+" — "+esc(CONFIG.topics[q.topic]||"")+"</div></div></div>";
+      '<div class="refline">📖 المرجع: '+esc(q.ref)+" — "+esc(topicName(q.part, q.topic))+"</div></div></div>";
   }).join("");
   show("screen-review");
 }
@@ -968,10 +1005,14 @@ document.addEventListener("DOMContentLoaded", ()=>{
 
   // اختيار نمط الاختبار والجزء
   $("#mode-cards").addEventListener("click", e=>{
-    const c = e.target.closest(".mode-card");
+    const c = e.target.closest(".mode-tile");
     if(!c || c.classList.contains("disabled")) return;
-    selMode = c.dataset.mode;
+    if(selMode !== c.dataset.mode){ selMode = c.dataset.mode; selPart = "all"; }
     renderPicker();
+  });
+  $("#level-chips").addEventListener("click", e=>{
+    const c = e.target.closest(".lvl-chip"); if(!c) return;
+    selLevel = c.dataset.level; renderPicker();
   });
   $("#part-select").addEventListener("change", e=>{ selPart = e.target.value; renderPicker(); });
 

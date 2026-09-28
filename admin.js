@@ -433,14 +433,21 @@ let editingId = null;
 function renderQuestionForm(){
   $("#q-part").innerHTML = CONFIG.parts.map(p=>
     '<option value="'+p.id+'">'+esc(p.id+" — "+p.name)+"</option>").join("");
-  $("#q-topic").innerHTML = Object.keys(CONFIG.topics).map(k=>
-    '<option value="'+k+'">'+esc(k+" — "+CONFIG.topics[k])+"</option>").join("");
+  fillTopicSelect();
   if(!$("#q-opts").children.length){
     $("#q-opts").innerHTML = [0,1,2,3].map(i=>
       '<div class="opt-row"><input type="radio" name="q-correct" value="'+i+'"'+(i===0?" checked":"")+'>'+
       '<input type="text" class="fillin" id="q-o'+i+'" placeholder="الخيار '+["أ","ب","ج","د"][i]+'"></div>').join("");
   }
   toggleQType();
+}
+/* قائمة الموضوعات الفرعية تتبع الوحدة المختارة */
+function fillTopicSelect(sel){
+  const part = $("#q-part").value;
+  const m = (CONFIG.partTopics && CONFIG.partTopics[part]) || {1:"عام"};
+  $("#q-topic").innerHTML = Object.keys(m).map(k=>
+    '<option value="'+k+'">'+esc(k+" — "+m[k])+"</option>").join("");
+  if(sel!==undefined && m[sel]) $("#q-topic").value = sel;
 }
 function toggleQType(){
   const t = $("#q-type").value;
@@ -532,7 +539,7 @@ function editQuestion(id){
   $("#q-form-title").textContent = "✏️ تعديل السؤال رقم " + q.id;
   $("#q-cancel").classList.remove("hidden");
   $("#q-part").value = q.part || "7.4";
-  $("#q-topic").value = q.topic || 1;
+  fillTopicSelect(q.topic || 1);
   $("#q-type").value = ["mcq","tf","fill"].includes(q.type) ? q.type : "mcq";
   toggleQType();
   $("#q-text").value = q.q || "";
@@ -601,7 +608,7 @@ function renderLocalQuestions(){
 /* تصدير بنك الأسئلة كاملًا بصيغة questions.js */
 function exportQuestions(){
   const body = QUESTION_BANK.map(q=>{
-    const o = {id:q.id, type:q.type, topic:q.topic, part:q.part, q:q.q};
+    const o = {id:q.id, type:q.type, topic:q.topic, part:q.part, level:q.level||2, q:q.q};
     if(q.opts){ o.opts = q.opts; o.a = q.a; }
     else if(q.type==="tf"){ o.a = q.a; }
     else if(q.answers){ o.answers = q.answers; }
@@ -632,7 +639,7 @@ function allRecords(){
     sid:  a.student? (a.student.sid||"—") : "—",
     email:a.student? a.student.email : "—",
     subject: a.student? a.student.subject : "—",
-    mode: a.mode==="full" ? "شامل" : "جزء " + (a.partId||""),
+    mode: a.title || (a.mode==="full" ? "شامل" : "جزء " + (a.partId||"")),
     pct: a.pct, correct:a.correct, wrong:a.wrong, skipped:a.skipped,
     time: fmtTime(a.usedSec), date: new Date(a.date).toLocaleString("ar-SA"),
     code: a.code||"—", src:"هذا الجهاز"
@@ -753,6 +760,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
   $("#bp-preview").addEventListener("click", previewBlueprint);
 
   $("#q-type").addEventListener("change", toggleQType);
+  $("#q-part").addEventListener("change", ()=>fillTopicSelect());
   $("#q-save").addEventListener("click", saveQuestion);
   $("#q-cancel").addEventListener("click", clearQForm);
   $("#q-export").addEventListener("click", exportQuestions);
