@@ -414,7 +414,7 @@ function attemptLogin(){
   }
 
   const name = $("#g-name").value.trim().replace(/\s+/g," ");
-  const email = $("#g-email").value.trim().toLowerCase();
+  let email = $("#g-email").value.trim().toLowerCase();
   const sid = $("#g-sid").value.trim();
   const subject = CONFIG.courseTitle || "الإعداد لاختبار الجاهزية";
   const pass = $("#g-pass").value.trim();
@@ -447,6 +447,9 @@ function attemptLogin(){
     else show("screen-admin");
     return;
   }
+
+  // البريد الجامعي للطالب أرقام فقط: يُقبل بحرف s قبل الرقم أو بدونه ويُحفظ بدونه
+  email = email.replace(/^s(?=\d+@)/, "");
 
   // الاسم: كلمتان على الأقل
   if(name.length < 5 || name.split(" ").length < 2){
