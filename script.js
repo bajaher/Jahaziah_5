@@ -369,7 +369,7 @@ function setRole(role){
     ? "🔓 دخول لوحة المعلم" : "🔓 تسجيل الدخول وبدء الاختبار";
   $("#g-email").placeholder = role==="admin"
     ? (CONFIG.adminEmails && CONFIG.adminEmails[0]) || "instructor@kku.edu.sa"
-    : "s123456789@kku.edu.sa";
+    : "433648217@kku.edu.sa";
   $("#g-email-hint").textContent = role==="admin"
     ? "بريد عضو هيئة التدريس المصرح له فقط"
     : (CONFIG.emailDomain
