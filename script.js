@@ -369,11 +369,11 @@ function setRole(role){
     ? "🔓 دخول لوحة المعلم" : "🔓 تسجيل الدخول وبدء الاختبار";
   $("#g-email").placeholder = role==="admin"
     ? (CONFIG.adminEmails && CONFIG.adminEmails[0]) || "instructor@kku.edu.sa"
-    : "s123456789@kku.edu.sa";
+    : "441234567@kku.edu.sa";
   $("#g-email-hint").textContent = role==="admin"
     ? "بريد عضو هيئة التدريس المصرح له فقط"
     : (CONFIG.emailDomain
-        ? "يجب أن ينتهي البريد بـ @" + CONFIG.emailDomain + " (البريد الجامعي الرسمي فقط)"
+        ? "البريد الجامعي أرقام فقط بدون حرف قبلها، مثل 441234567@" + CONFIG.emailDomain
         : "أدخل بريدك الإلكتروني الرسمي");
   $("#g-pass").value = "";
 }
@@ -382,7 +382,7 @@ function renderGate(){
   $("#g-title").textContent = CONFIG.examTitle;
   $("#g-course").textContent = CONFIG.examSubtitle + " — " + CONFIG.instructor;
   $("#g-email-hint").textContent = CONFIG.emailDomain
-    ? "يجب أن ينتهي البريد بـ @" + CONFIG.emailDomain + " (البريد الجامعي الرسمي فقط)"
+    ? "البريد الجامعي أرقام فقط بدون حرف قبلها، مثل 441234567@" + CONFIG.emailDomain
     : "أدخل بريدك الإلكتروني الرسمي";
   // قائمة المقررات = الوحدات المعرفية في معايير المحاسبة 2025
   // أُلغي اختيار المقرر من شاشة الدخول؛ يختار الطالب نوع الاختبار من الصفحة الرئيسية
@@ -414,7 +414,7 @@ function attemptLogin(){
   }
 
   const name = $("#g-name").value.trim().replace(/\s+/g," ");
-  const email = $("#g-email").value.trim().toLowerCase();
+  let email = $("#g-email").value.trim().toLowerCase();
   const sid = $("#g-sid").value.trim();
   const subject = CONFIG.courseTitle || "الإعداد لاختبار الجاهزية";
   const pass = $("#g-pass").value.trim();
@@ -447,6 +447,9 @@ function attemptLogin(){
     else show("screen-admin");
     return;
   }
+
+  // البريد الجامعي للطالب أرقام فقط: يُقبل بحرف s قبل الرقم أو بدونه ويُحفظ بدونه
+  email = email.replace(/^s(?=\d+@)/, "");
 
   // الاسم: كلمتان على الأقل
   if(name.length < 5 || name.split(" ").length < 2){
