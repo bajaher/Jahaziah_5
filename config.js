@@ -32,7 +32,7 @@ const CONFIG = {
        adminEmails: ["msawwd@kku.edu.sa", "aalshehri@kku.edu.sa"],
      تحذير: ترك القائمة فارغة [] يلغي التقييد ويسمح لأي بريد صحيح مع كلمة مرور المعلم. */
   adminPassword: "ADMIN-KKU2026",          // كلمة مرور لوحة المعلم
-  adminEmails: ["msawwd@kku.edu.sa"],      // البريد المصرح له بالدخول كمسؤول
+  adminEmails: ["msawwd@kku.edu.sa", "fshhri@kku.edu.sa"],  // البريد المصرح له بالدخول كمسؤول
 
   /* ===================================================================
      أنماط الاختبار
