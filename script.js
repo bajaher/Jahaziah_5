@@ -884,7 +884,7 @@ function exportResult(){
 
   // ملف CSV بترميز UTF-8 مع BOM ليفتح صحيحًا في Excel العربي
   const csv = "﻿" + rows.map(x=>'"'+String(x[0]).replace(/"/g,'""')+'","'+String(x[1]).replace(/"/g,'""')+'"').join("\r\n");
-  const safe = (s.sid || s.name || "student").toString().replace(/[^\w؀-ۿ-]/g,"_");
+  const safe = (s.sid || (s.email||"").split("@")[0] || s.name || "student").toString().replace(/[^\w؀-ۿ-]/g,"_");
   const fname = "نتيجة_" + safe + "_" + r.pct + "%.csv";
   try{
     const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
