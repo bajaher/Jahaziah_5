@@ -22,7 +22,7 @@ const CONFIG = {
   examPassword: "KKU2026",      // كلمة مرور دخول الطلاب
   requireRegistration: true,    // إلزام الطالب بتسجيل بياناته
   emailDomain: "kku.edu.sa",    // نطاق البريد الجامعي المقبول ("" = أي بريد)
-  askStudentId: true,           // طلب الرقم الجامعي
+  askStudentId: false,          // طلب الرقم الجامعي (أُلغي: الدخول بالبريد وكلمة المرور)
   maxPasswordTries: 5,          // محاولات كلمة المرور قبل الإيقاف المؤقت
   lockSeconds: 60,
 
