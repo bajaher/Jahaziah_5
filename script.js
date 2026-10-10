@@ -401,7 +401,7 @@ function gateError(msg, focusId){
   }
 }
 
-function attemptLogin(){
+async function attemptLogin(){
   ["g-name","g-email","g-sid","g-pass"].forEach(id=>{
     const el = $("#"+id); if(el) el.classList.remove("invalid");
   });
@@ -428,7 +428,7 @@ function attemptLogin(){
     if(allowed.length && !allowed.includes(email)){
       gateError("هذا البريد غير مصرح له بالدخول كمعلم.", "g-email"); return;
     }
-    if(pass !== String(CONFIG.adminPassword)){
+    if(!(await AUTH.check("admin", pass))){
       passTries++;
       const remain = (CONFIG.maxPasswordTries||5) - passTries;
       if(remain <= 0){
@@ -466,7 +466,7 @@ function attemptLogin(){
   // المقرر
 
   // كلمة المرور
-  if(pass.toUpperCase() !== String(CONFIG.examPassword).toUpperCase()){
+  if(!(await AUTH.check("exam", pass))){
     passTries++;
     const remain = (CONFIG.maxPasswordTries||5) - passTries;
     if(remain <= 0){
