@@ -24,7 +24,7 @@ const CONFIG = {
   repoOwner: "bajaher", repoName: "Jahaziah_5", repoBranch: "main",   // مستودع النشر لتحديث كلمات المرور
   requireRegistration: true,    // إلزام الطالب بتسجيل بياناته
   emailDomain: "kku.edu.sa",    // نطاق البريد الجامعي المقبول ("" = أي بريد)
-  askStudentId: true,           // طلب الرقم الجامعي
+  askStudentId: false,          // طلب الرقم الجامعي (أُلغي: الدخول بالبريد وكلمة المرور)
   maxPasswordTries: 5,          // محاولات كلمة المرور قبل الإيقاف المؤقت
   lockSeconds: 60,
 
@@ -34,7 +34,7 @@ const CONFIG = {
        adminEmails: ["msawwd@kku.edu.sa", "aalshehri@kku.edu.sa"],
      تحذير: ترك القائمة فارغة [] يلغي التقييد ويسمح لأي بريد صحيح مع كلمة مرور المعلم. */
   adminPasswordHash: "b2076a6d42a7fe80ace844e666adc3edca0296ff87ac903ab406c31d5fac84e0",   // المعلم
-  adminEmails: ["msawwd@kku.edu.sa"],      // البريد المصرح له بالدخول كمسؤول
+  adminEmails: ["msawwd@kku.edu.sa", "fshhri@kku.edu.sa"],  // البريد المصرح له بالدخول كمسؤول
 
   /* ===================================================================
      أنماط الاختبار

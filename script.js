@@ -369,11 +369,11 @@ function setRole(role){
     ? "🔓 دخول لوحة المعلم" : "🔓 تسجيل الدخول وبدء الاختبار";
   $("#g-email").placeholder = role==="admin"
     ? (CONFIG.adminEmails && CONFIG.adminEmails[0]) || "instructor@kku.edu.sa"
-    : "433648217@kku.edu.sa";
+    : "441234567@kku.edu.sa";
   $("#g-email-hint").textContent = role==="admin"
     ? "بريد عضو هيئة التدريس المصرح له فقط"
     : (CONFIG.emailDomain
-        ? "يجب أن ينتهي البريد بـ @" + CONFIG.emailDomain + " (البريد الجامعي الرسمي فقط)"
+        ? "البريد الجامعي أرقام فقط بدون حرف قبلها، مثل 441234567@" + CONFIG.emailDomain
         : "أدخل بريدك الإلكتروني الرسمي");
   $("#g-pass").value = "";
 }
@@ -382,7 +382,7 @@ function renderGate(){
   $("#g-title").textContent = CONFIG.examTitle;
   $("#g-course").textContent = CONFIG.examSubtitle + " — " + CONFIG.instructor;
   $("#g-email-hint").textContent = CONFIG.emailDomain
-    ? "يجب أن ينتهي البريد بـ @" + CONFIG.emailDomain + " (البريد الجامعي الرسمي فقط)"
+    ? "البريد الجامعي أرقام فقط بدون حرف قبلها، مثل 441234567@" + CONFIG.emailDomain
     : "أدخل بريدك الإلكتروني الرسمي";
   // قائمة المقررات = الوحدات المعرفية في معايير المحاسبة 2025
   // أُلغي اختيار المقرر من شاشة الدخول؛ يختار الطالب نوع الاختبار من الصفحة الرئيسية
@@ -414,7 +414,7 @@ async function attemptLogin(){
   }
 
   const name = $("#g-name").value.trim().replace(/\s+/g," ");
-  const email = $("#g-email").value.trim().toLowerCase();
+  let email = $("#g-email").value.trim().toLowerCase();
   const sid = $("#g-sid").value.trim();
   const subject = CONFIG.courseTitle || "الإعداد لاختبار الجاهزية";
   const pass = $("#g-pass").value.trim();
@@ -447,6 +447,9 @@ async function attemptLogin(){
     else show("screen-admin");
     return;
   }
+
+  // البريد الجامعي للطالب أرقام فقط: يُقبل بحرف s قبل الرقم أو بدونه ويُحفظ بدونه
+  email = email.replace(/^s(?=\d+@)/, "");
 
   // الاسم: كلمتان على الأقل
   if(name.length < 5 || name.split(" ").length < 2){
@@ -881,7 +884,7 @@ function exportResult(){
 
   // ملف CSV بترميز UTF-8 مع BOM ليفتح صحيحًا في Excel العربي
   const csv = "﻿" + rows.map(x=>'"'+String(x[0]).replace(/"/g,'""')+'","'+String(x[1]).replace(/"/g,'""')+'"').join("\r\n");
-  const safe = (s.sid || s.name || "student").toString().replace(/[^\w؀-ۿ-]/g,"_");
+  const safe = (s.sid || (s.email||"").split("@")[0] || s.name || "student").toString().replace(/[^\w؀-ۿ-]/g,"_");
   const fname = "نتيجة_" + safe + "_" + r.pct + "%.csv";
   try{
     const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
