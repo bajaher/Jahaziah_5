@@ -191,9 +191,7 @@
           <div class="field"><label>مدة الاختبار الشامل (دقيقة)</label><input id="s-fd" class="fillin" type="number" min="5" max="300"></div>
           <div class="field"><label>درجة النجاح %</label><input id="s-pass" class="fillin" type="number" min="1" max="100"></div>
           <div class="field"><label>نطاق البريد الجامعي</label><input id="s-domain" class="fillin" type="text" dir="ltr" style="text-align:left"></div>
-          <div class="field"><label>كلمة مرور الطلاب</label><input id="s-spass" class="fillin" type="text" dir="ltr" style="text-align:left"></div>
-          <div class="field"><label>كلمة مرور المعلم</label><input id="s-apass" class="fillin" type="text" dir="ltr" style="text-align:left"></div>
-        </div>
+                  </div>
         <div class="field" style="margin-top:4px">
           <label>أنواع الأسئلة المسموحة</label>
           <div id="s-types" class="chk-row"></div>
@@ -208,6 +206,19 @@
           <button id="s-export" class="btn btn-outline">📤 تصدير config.js</button>
         </div>
         <div class="adm-note" id="s-note"></div>
+      </div>
+
+      <div class="card">
+        <b style="font-size:.9rem">🔑 كلمات المرور (تُنشر لجميع الطلاب)</b>
+        <div class="adm-note">اترك الحقل فارغًا للإبقاء على كلمة المرور الحالية. تظهر التغييرات للطلاب بعد نحو دقيقة من النشر.</div>
+        <div class="adm-grid" style="margin-top:12px">
+          <div class="field"><label>كلمة مرور الطلاب الجديدة</label><input id="s-spass" class="fillin" type="text" dir="ltr" style="text-align:left" autocomplete="off"></div>
+          <div class="field"><label>كلمة مرور المعلم الجديدة</label><input id="s-apass" class="fillin" type="text" dir="ltr" style="text-align:left" autocomplete="off"></div>
+          <div class="field"><label>رمز GitHub (مرة واحدة فقط)</label><input id="s-token" class="fillin" type="password" dir="ltr" style="text-align:left" autocomplete="off" placeholder="github_pat_..."></div>
+        </div>
+        <div class="adm-note">الرمز: GitHub ← Settings ← Developer settings ← Fine-grained tokens ← مستودع Jahaziah_5 فقط ← Contents: Read and write. يُحفظ على جهازك فقط ولا يُرسل لغير GitHub.</div>
+        <div class="adm-actions"><button id="s-publish" class="btn btn-primary">🔑 نشر كلمات المرور</button></div>
+        <div class="adm-note" id="p-note"></div>
       </div>
     </div>
 
@@ -457,6 +468,7 @@
 </div>
 
 <script src="config.js"></script>
+<script src="auth.js"></script>
 <script src="units.js"></script>
 <script src="questions.js"></script>
 <script src="questions-7.1.js"></script>

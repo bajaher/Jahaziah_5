@@ -29,7 +29,7 @@ function applyAdminOverrides(){
     CONFIG.modes.part = Object.assign({}, CONFIG.modes.part, s.modes.part||{});
     CONFIG.modes.full = Object.assign({}, CONFIG.modes.full, s.modes.full||{});
   }
-  ["passingGrade","emailDomain","examPassword","adminPassword","shuffleQuestions",
+  ["passingGrade","emailDomain","shuffleQuestions",
    "shuffleChoices","askStudentId","requireRegistration"].forEach(k=>{
     if(s[k] !== undefined) CONFIG[k] = s[k];
   });
@@ -361,8 +361,7 @@ function renderSettings(){
   $("#s-fd").value = CONFIG.modes.full.duration;
   $("#s-pass").value = CONFIG.passingGrade;
   $("#s-domain").value = CONFIG.emailDomain || "";
-  $("#s-spass").value = CONFIG.examPassword;
-  $("#s-apass").value = CONFIG.adminPassword;
+  try{ $("#s-token").value = localStorage.getItem("jhz5_gh_token") || ""; }catch(e){}
   $("#s-types").innerHTML = TYPE_LIST.map(t=>
     '<label><input type="checkbox" value="'+t[0]+'"'+
     (CONFIG.allowedTypes.includes(t[0])?" checked":"")+"> "+t[1]+"</label>").join("");
@@ -386,8 +385,6 @@ function saveSettings(){
   };
   s.passingGrade = num("s-pass",1,100,60);
   s.emailDomain  = $("#s-domain").value.trim().replace(/^@/,"");
-  s.examPassword = $("#s-spass").value.trim() || CONFIG.examPassword;
-  s.adminPassword= $("#s-apass").value.trim() || CONFIG.adminPassword;
   s.allowedTypes = types;
   FLAG_LIST.forEach(f=>{ s[f[0]] = $("#s-flags").querySelector('input[value="'+f[0]+'"]').checked; });
 
@@ -395,6 +392,20 @@ function saveSettings(){
   applyAdminOverrides();
   renderSettings();
   note("s-note","✔ تم حفظ الإعدادات على هذا الجهاز. لجعلها دائمة لجميع الطلاب صدّر config.js واستبدله في المستودع.","ok");
+}
+
+async function publishPasswords(){
+  const ns = $("#s-spass").value.trim(), na = $("#s-apass").value.trim(), tok = $("#s-token").value.trim();
+  if(!ns && !na){ note("p-note","اكتب كلمة مرور جديدة واحدة على الأقل.","bad"); return; }
+  if((ns && ns.length<6) || (na && na.length<8)){ note("p-note","الحد الأدنى: 6 خانات للطلاب و8 للمعلم.","bad"); return; }
+  if(!tok){ note("p-note","الصق رمز GitHub أولًا (الخطوات أعلاه).","bad"); return; }
+  note("p-note","جارٍ النشر…","ok");
+  try{
+    await AUTH.publish(tok, ns, na);
+    try{ localStorage.setItem("jhz5_gh_token", tok); }catch(e){}
+    $("#s-spass").value = ""; $("#s-apass").value = "";
+    note("p-note","✔ تم النشر. ستعمل كلمات المرور الجديدة لجميع الطلاب خلال دقيقة تقريبًا.","ok");
+  }catch(e){ note("p-note","✖ "+e.message,"bad"); }
 }
 
 function resetSettings(){
@@ -410,8 +421,6 @@ function exportConfig(){
     "/* الإعدادات المصدَّرة من لوحة المعلم — " + new Date().toLocaleString("ar-SA") + " */",
     "/* انسخ القيم التالية داخل CONFIG في ملف config.js */",
     "",
-    "examPassword: " + JSON.stringify(CONFIG.examPassword) + ",",
-    "adminPassword: " + JSON.stringify(CONFIG.adminPassword) + ",",
     "emailDomain: " + JSON.stringify(CONFIG.emailDomain) + ",",
     "passingGrade: " + CONFIG.passingGrade + ",",
     "requireRegistration: " + !!CONFIG.requireRegistration + ",",
@@ -750,6 +759,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
   $("#s-save").addEventListener("click", saveSettings);
   $("#s-reset").addEventListener("click", resetSettings);
   $("#s-export").addEventListener("click", exportConfig);
+  $("#s-publish").addEventListener("click", publishPasswords);
 
   $("#u-select").addEventListener("change", renderUnitDetail);
   $("#u-save").addEventListener("click", saveUnitSettings);
