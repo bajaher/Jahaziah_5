@@ -20,7 +20,7 @@ const CONFIG = {
      إعدادات الدخول وتسجيل الطلاب  —  عدّلها قبل توزيع الرابط
      =================================================================== */
   // كلمات المرور تُحفظ مشفّرة (SHA-256) — القيمة الفعلية تُقرأ من passwords.json ويغيّرها المعلم من لوحته
-  examPasswordHash: "329297f6e543b32d95245af07d881a8cff3ac46118e34dd5fffe3a24da84ab77",   // طلاب
+  examPasswordHash: "0e0d15425676d4d6e582e24d3ca588adfd400511c276e0a62273fe969410e8d2",   // طلاب
   repoOwner: "bajaher", repoName: "Jahaziah_5", repoBranch: "main",   // مستودع النشر لتحديث كلمات المرور
   requireRegistration: true,    // إلزام الطالب بتسجيل بياناته
   emailDomain: "kku.edu.sa",    // نطاق البريد الجامعي المقبول ("" = أي بريد)
@@ -33,7 +33,7 @@ const CONFIG = {
      لإضافة زميل: اكتب بريده الحقيقي داخل القائمة مفصولًا بفاصلة، مثال:
        adminEmails: ["msawwd@kku.edu.sa", "aalshehri@kku.edu.sa"],
      تحذير: ترك القائمة فارغة [] يلغي التقييد ويسمح لأي بريد صحيح مع كلمة مرور المعلم. */
-  adminPasswordHash: "3f1a39d2a78fd8194b758ce67f627cbd4537b3061a8e6fb1b8cba237b1e4d676",   // المعلم
+  adminPasswordHash: "b2076a6d42a7fe80ace844e666adc3edca0296ff87ac903ab406c31d5fac84e0",   // المعلم
   adminEmails: ["msawwd@kku.edu.sa"],      // البريد المصرح له بالدخول كمسؤول
 
   /* ===================================================================
